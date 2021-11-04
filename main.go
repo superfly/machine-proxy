@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/api"
 )
 
 func copyHeader(dst, src http.Header) {
@@ -19,28 +23,33 @@ var client = http.Client{
 	Timeout: time.Minute,
 }
 
+var apiClient *api.Client
+
 type proxy struct {
 	upstream string
 }
 
+var appName string
+
 func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	log.Printf("Incoming request %s %s %s", req.RemoteAddr, req.Method, req.URL)
 
-	/*
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
 
-		instanceHasBeenBooted := p.deployer.deployUnlessDeployed()
+	started := make(chan bool)
 
-		select {
-		case <-ctx.Done():
-			renderCode(w, http.StatusGatewayTimeout) // this means we reached the timeout
-			return
-		case <-instanceHasBeenBooted:
-			break // a healthy instance was found or one was booted; continue
-		}
-	*/
+	go startAppIfStopped(ctx, started)
 
+	select {
+	case <-ctx.Done():
+		renderCode(wr, http.StatusGatewayTimeout) // this means we reached the timeout
+		return
+	case <-started:
+		break // a healthy instance was found or one was booted; continue
+	}
+
+	fmt.Println("PROCESSING REQUEST")
 	internalReq := req.Clone(req.Context())
 
 	//http: Request.RequestURI can't be set in client requests.
@@ -80,13 +89,32 @@ func init() {
 }
 
 func main() {
+
+	ctx := context.Background()
+
 	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
 	flag.Parse()
 
 	upstream, ok := os.LookupEnv("UPSTREAM")
 	if !ok || upstream == "" {
-		log.Fatal("$UPSTREAM not defined")
+		log.Fatal("UPSTREAM not defined")
 	}
+
+	appName, ok := os.LookupEnv("APP_NAME")
+	if !ok || appName == "" {
+		log.Fatal("APP_NAME not defined")
+	}
+
+	accessToken, ok := os.LookupEnv("FLY_ACCESS_TOKEN")
+	if !ok || appName == "" {
+		log.Fatal("FLY_ACCESS_TOKEN not defined")
+	}
+
+	api.SetBaseURL("https://app.fly.io")
+	apiClient = api.NewClient(accessToken, "machines-proxy", "1.0.0", new(logger))
+
+	log.Println("Starting app health check")
+	go CheckAppHealth(ctx, appName, accessToken)
 
 	handler := &proxy{
 		upstream: upstream, // localhost:10201
