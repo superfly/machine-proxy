@@ -20,7 +20,7 @@ func checkAppHealth(ctx context.Context, cfg *config) {
 		// Passing a blank state will return all machines
 		machines, err := apiClient.ListMachines(cfg.appName, "")
 		if err != nil {
-			log.Printf("failed checking app health: %v")
+			log.Printf("failed checking app health: %v", err)
 
 			return
 		}

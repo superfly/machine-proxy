@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -23,7 +23,8 @@ func startAppIfStopped(ctx context.Context, started chan bool) {
 		}
 
 		if machine.State == "stopped" || machine.State == "exited" {
-			fmt.Printf("Starting %s", machine.ID)
+			log.Printf("Starting %s", machine.ID)
+
 			apiClient.StartMachine(input)
 		}
 	}

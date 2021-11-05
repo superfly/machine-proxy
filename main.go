@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -51,7 +50,7 @@ func (p *proxy) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 		break // a healthy instance was found or one was booted; continue
 	}
 
-	fmt.Println("PROCESSING REQUEST")
+	log.Println("PROCESSING REQUEST")
 	internalReq := req.Clone(req.Context())
 
 	//http: Request.RequestURI can't be set in client requests.
