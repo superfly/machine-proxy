@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -89,39 +91,56 @@ func init() {
 }
 
 func main() {
-
-	ctx := context.Background()
-
-	var addr = flag.String("addr", "127.0.0.1:8080", "The addr of the application.")
-	flag.Parse()
-
-	upstream, ok := os.LookupEnv("UPSTREAM")
-	if !ok || upstream == "" {
-		log.Fatal("UPSTREAM not defined")
-	}
-
-	appName, ok := os.LookupEnv("APP_NAME")
-	if !ok || appName == "" {
-		log.Fatal("APP_NAME not defined")
-	}
-
-	accessToken, ok := os.LookupEnv("FLY_ACCESS_TOKEN")
-	if !ok || appName == "" {
-		log.Fatal("FLY_ACCESS_TOKEN not defined")
+	cfg, err := configFromEnv()
+	if err != nil {
+		log.Fatalf("failed loading config: %v", err)
 	}
 
 	api.SetBaseURL("https://app.fly.io")
-	apiClient = api.NewClient(accessToken, "machines-proxy", "1.0.0", new(logger))
+	apiClient = api.NewClient(cfg.accessToken, "machines-proxy", "1.0.0", new(logger))
 
-	log.Println("Starting app health check")
-	go CheckAppHealth(ctx, appName, accessToken)
+	run(cfg)
+}
+
+func run(cfg *config) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	go func() {
+		defer wg.Done()
+
+		checkAppHealth(ctx, cfg)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		serve(ctx, cfg.addr, cfg.upstream)
+	}()
+}
+
+func serve(ctx context.Context, addr, upstream string) {
+	log.Println("entered serve")
+	defer log.Println("exited serve")
 
 	handler := &proxy{
 		upstream: upstream, // localhost:10201
 	}
 
-	log.Println("Starting proxy server on", *addr)
-	if err := http.ListenAndServe(*addr, handler); err != nil {
-		log.Fatal("ListenAndServe:", err)
+	loop(ctx, time.Second, func(context.Context) {
+		if err := http.ListenAndServe(addr, handler); err != http.ErrServerClosed {
+			log.Printf("failed listening: %v", err)
+		}
+	})
+}
+
+func loop(ctx context.Context, p time.Duration, fn func(context.Context)) {
+	for ctx.Err() == nil {
+		fn(ctx)
+
+		pause.For(ctx, p)
 	}
 }

@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
-
-	"github.com/azazeal/pause"
 )
 
 var (
@@ -13,29 +12,30 @@ var (
 	appHealthy      bool
 )
 
-func CheckAppHealth(ctx context.Context, appName string, accessToken string) {
-	loop(ctx, time.Second, func(ctx context.Context) {
+func checkAppHealth(ctx context.Context, cfg *config) {
+	log.Println("entered checkAppHealth")
+	defer log.Println("exited checkAppHealth")
 
+	loop(ctx, time.Second, func(ctx context.Context) {
 		// Passing a blank state will return all machines
-		machines, _ := apiClient.ListMachines(appName, "")
+		machines, err := apiClient.ListMachines(cfg.appName, "")
+		if err != nil {
+			log.Printf("failed checking app health: %v")
+
+			return
+		}
+
 		appHealthyMutex.Lock()
 		defer appHealthyMutex.Unlock()
 
 		for _, machine := range machines {
-
 			if machine.State != "started" {
 				appHealthy = false
+
 				return
 			}
 		}
+
 		appHealthy = true
 	})
-}
-
-func loop(ctx context.Context, p time.Duration, fn func(context.Context)) {
-	for ctx.Err() == nil {
-		fn(ctx)
-
-		pause.For(ctx, p)
-	}
 }
