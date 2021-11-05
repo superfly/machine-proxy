@@ -3,13 +3,9 @@ package main
 import (
 	"context"
 	"log"
-	"sync"
 	"time"
-)
 
-var (
-	appHealthyMutex sync.RWMutex
-	appHealthy      bool
+	"github.com/superfly/machine-proxy/internal/health"
 )
 
 func checkAppHealth(ctx context.Context, cfg *config) {
@@ -18,24 +14,21 @@ func checkAppHealth(ctx context.Context, cfg *config) {
 
 	loop(ctx, time.Second, func(ctx context.Context) {
 		// Passing a blank state will return all machines
-		machines, err := apiClient.ListMachines(cfg.appName, "")
+		machines, err := cfg.client.ListMachines(cfg.appName, "")
 		if err != nil {
 			log.Printf("failed checking app health: %v", err)
 
 			return
 		}
 
-		appHealthyMutex.Lock()
-		defer appHealthyMutex.Unlock()
-
 		for _, machine := range machines {
 			if machine.State != "started" {
-				appHealthy = false
+				health.Unset()
 
 				return
 			}
 		}
 
-		appHealthy = true
+		health.Set()
 	})
 }

@@ -3,13 +3,15 @@ package main
 import (
 	"errors"
 	"os"
+
+	"github.com/superfly/flyctl/api"
 )
 
 type config struct {
-	addr        string
-	upstream    string
-	appName     string
-	accessToken string
+	addr     string
+	upstream string
+	appName  string
+	client   *api.Client
 }
 
 func configFromEnv() (*config, error) {
@@ -34,9 +36,9 @@ func configFromEnv() (*config, error) {
 	}
 
 	return &config{
-		addr:        addr,
-		upstream:    upstream,
-		appName:     appName,
-		accessToken: accessToken,
+		addr:     addr,
+		upstream: upstream,
+		appName:  appName,
+		client:   api.NewClient(accessToken, "machines-proxy", "1.0.0", new(fakeLogger)),
 	}, nil
 }

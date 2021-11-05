@@ -1,16 +1,13 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
+import "log"
 
-type logger struct{}
+type fakeLogger struct{}
 
-func (l *logger) Debugf(format string, v ...interface{}) {
-	l.Debug(fmt.Sprintf(format, v...))
+func (*fakeLogger) Debugf(format string, v ...interface{}) {
+	log.Printf(format, v...)
 }
 
-func (*logger) Debug(v ...interface{}) {
-	fmt.Fprintln(os.Stderr, v...)
+func (*fakeLogger) Debug(v ...interface{}) {
+	log.Print(v...)
 }
