@@ -8,7 +8,7 @@ processes = []
 
 [env]
 
-  UPSTREAM = "fdaa:0:2696:a7b:25db:8253:1f78:20:80"
+  UPSTREAM = "fdaa:0:360a:a7b:2656:8257:b08:2:80"
   APP_NAME = "js-machine-test"
 
 [experimental]
