@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -49,20 +50,47 @@ func run(ctx context.Context, cfg *config) {
 	go func() {
 		defer wg.Done()
 
-		serve(ctx, cfg.addr, cfg.upstream)
+		serve(ctx, cfg)
 	}()
 }
 
-func serve(ctx context.Context, addr, upstream string) {
+func serve(ctx context.Context, cfg *config) {
 	log.Println("entered serve")
 	defer log.Println("exited serve")
 
 	handler := &proxy{
-		upstream: upstream, // localhost:10201
+		upstream: cfg.upstream, // localhost:10201
 	}
 
 	loop(ctx, time.Second, func(context.Context) {
-		if err := http.ListenAndServe(addr, handler); err != http.ErrServerClosed {
+		l, err := net.Listen("tcp", cfg.addr)
+		if err != nil {
+			log.Printf("failed listening on %s: %v", cfg.addr, err)
+
+			return
+		}
+
+		srv := &http.Server{
+			Handler:  handler,
+			ErrorLog: log.New(log.Writer(), log.Prefix(), log.Flags()),
+		}
+
+		served := make(chan struct{})
+		defer close(served)
+
+		go func() {
+			select {
+			case <-ctx.Done():
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute>>1)
+				defer cancel()
+
+				_ = srv.Shutdown(ctx)
+			case <-served:
+				break
+			}
+		}()
+
+		if err := srv.Serve(l); err != http.ErrServerClosed {
 			log.Printf("failed listening: %v", err)
 		}
 	})
