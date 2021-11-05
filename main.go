@@ -60,6 +60,7 @@ func serve(ctx context.Context, cfg *config) {
 
 	handler := &proxy{
 		upstream: cfg.upstream, // localhost:10201
+		cfg:      cfg,
 	}
 
 	loop(ctx, time.Second, func(context.Context) {
